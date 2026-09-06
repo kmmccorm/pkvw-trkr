@@ -35,6 +35,10 @@ bun test          # unit tests, no network access
 bun run typecheck
 ```
 
+Both also run in GitHub Actions on every push (`.github/workflows/ci.yml`).
+That runs on GitHub's hosted runners only; the Pi is not involved and needs
+nothing installed or configured for it.
+
 ### Working on the display without real buses
 
 Live data cannot produce every state on demand — a full board only happens at
