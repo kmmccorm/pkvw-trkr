@@ -37,14 +37,44 @@ export function buildArrivalsResponse(cfg: Config, now: Date = new Date()): Arri
   };
 }
 
+/**
+ * Sent with every response. The page is only ever loaded by a kiosk on
+ * loopback, so this is defence in depth: it means data from CTA could not run
+ * as script even if some future change stopped escaping it.
+ *
+ * `default-src 'none'` and no 'unsafe-inline' anywhere is why index.html
+ * carries no inline script or style: everything is a same-origin file.
+ */
+const SECURITY_HEADERS = {
+  'content-security-policy':
+    "default-src 'none'; script-src 'self'; style-src 'self'; connect-src 'self'; " +
+    "base-uri 'none'; form-action 'none'; frame-ancestors 'none'",
+  'x-content-type-options': 'nosniff',
+  'x-frame-options': 'DENY',
+  'referrer-policy': 'no-referrer',
+  'cache-control': 'no-store',
+};
+
 const json = (body: unknown, status = 200) =>
   new Response(JSON.stringify(body), {
     status,
-    headers: { 'content-type': 'application/json', 'cache-control': 'no-store' },
+    headers: { ...SECURITY_HEADERS, 'content-type': 'application/json' },
   });
 
+/**
+ * The files the page is allowed to load, by URL path. An explicit map rather
+ * than a directory walk: nothing outside it is reachable, whatever the path.
+ */
+const STATIC: Record<string, { file: string; type: string }> = {
+  '/': { file: 'index.html', type: 'text/html; charset=utf-8' },
+  '/index.html': { file: 'index.html', type: 'text/html; charset=utf-8' },
+  '/style.css': { file: 'style.css', type: 'text/css; charset=utf-8' },
+  '/app.js': { file: 'app.js', type: 'text/javascript; charset=utf-8' },
+  '/countdown.js': { file: 'countdown.js', type: 'text/javascript; charset=utf-8' },
+};
+
 export function startServer(cfg: Config) {
-  const index = Bun.file(new URL('../public/index.html', import.meta.url));
+  const publicDir = new URL('../public/', import.meta.url);
 
   return Bun.serve({
     port: cfg.port,
@@ -52,9 +82,10 @@ export function startServer(cfg: Config) {
     fetch(request) {
       const { pathname } = new URL(request.url);
 
-      if (pathname === '/' || pathname === '/index.html') {
-        return new Response(index, {
-          headers: { 'content-type': 'text/html; charset=utf-8', 'cache-control': 'no-store' },
+      const asset = STATIC[pathname];
+      if (asset) {
+        return new Response(Bun.file(new URL(asset.file, publicDir)), {
+          headers: { ...SECURITY_HEADERS, 'content-type': asset.type },
         });
       }
 
@@ -76,7 +107,7 @@ export function startServer(cfg: Config) {
         );
       }
 
-      return new Response('Not found', { status: 404 });
+      return new Response('Not found', { status: 404, headers: SECURITY_HEADERS });
     },
   });
 }

@@ -1,0 +1,68 @@
+/* Served as /style.css. Extracted from index.html so the page can carry a
+   strict Content-Security-Policy; see startServer() in src/server.ts. */
+:root {
+  --bg: #0d1117; --panel: #161b22; --line: #30363d;
+  --text: #e6edf3; --muted: #8b949e; --accent: #58a6ff;
+  --warn: #d29922; --due: #3fb950;
+}
+* { box-sizing: border-box; }
+html, body { height: 100%; margin: 0; }
+body {
+  background: var(--bg); color: var(--text);
+  font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  display: flex; flex-direction: column; overflow: hidden;
+  -webkit-font-smoothing: antialiased;
+}
+header {
+  display: flex; align-items: baseline; justify-content: space-between;
+  gap: 1rem; padding: clamp(.4rem, 1.6vh, 1.5rem) clamp(.75rem, 2.5vw, 2.5rem);
+  border-bottom: 1px solid var(--line);
+}
+h1 { margin: 0; font-size: clamp(1rem, min(4.5vh, 2.8vw), 2rem); font-weight: 600; letter-spacing: -.02em; }
+#clock { font-size: clamp(1rem, min(4.5vh, 2.8vw), 2rem); font-variant-numeric: tabular-nums; color: var(--muted); }
+/* Centred rather than top-anchored: on a 480px panel a short list pinned to
+   the top leaves the screen looking broken. */
+main {
+  flex: 1; display: flex; flex-direction: column; justify-content: center;
+  min-height: 0; padding: 0 clamp(.75rem, 2.5vw, 2.5rem);
+}
+table { width: 100%; border-collapse: collapse; table-layout: fixed; }
+/* Column widths live here rather than as style attributes so the page can
+   ship a Content-Security-Policy with no inline style allowance. */
+col.route { width: 12%; }
+col.dir { width: 40%; }
+col.time { width: 28%; }
+col.mins { width: 20%; }
+th.mins { text-align: right; }
+th {
+  text-align: left; font-size: clamp(.6rem, min(2.6vh, 1.5vw), .95rem); font-weight: 600;
+  letter-spacing: .1em; text-transform: uppercase; color: var(--muted);
+  padding: clamp(.35rem, 1.2vh, 1.1rem) .4rem; border-bottom: 1px solid var(--line);
+}
+td {
+  font-size: clamp(1.5rem, min(9vh, 5.2vw), 3.25rem); font-weight: 500;
+  padding: clamp(.45rem, 1.7vh, 1.2rem) .4rem; border-bottom: 1px solid var(--line);
+  font-variant-numeric: tabular-nums; white-space: nowrap;
+  overflow: hidden; text-overflow: ellipsis;
+}
+td.route { font-weight: 700; color: var(--accent); }
+td.mins { text-align: right; }
+td.mins .due { color: var(--due); font-weight: 700; }
+tr.delayed td.route, tr.delayed td.mins { color: var(--warn); }
+/* Minute counts are hidden once the cache is too old to trust. */
+body.stale td.mins { color: var(--muted); opacity: .45; }
+#notice {
+  flex: 1; display: none; align-items: center; justify-content: center;
+  text-align: center; font-size: clamp(1.25rem, min(9vh, 6vw), 3.5rem);
+  font-weight: 600; color: var(--muted); padding: 1rem; line-height: 1.25;
+}
+body[data-view="notice"] #notice { display: flex; }
+body[data-view="notice"] table { display: none; }
+footer {
+  display: flex; align-items: center; gap: .6rem;
+  padding: clamp(.3rem, 1.2vh, 1.1rem) clamp(.75rem, 2.5vw, 2.5rem);
+  border-top: 1px solid var(--line);
+  font-size: clamp(.65rem, min(2.6vh, 1.6vw), 1rem); color: var(--muted);
+}
+#dot { width: .65em; height: .65em; border-radius: 50%; background: var(--due); flex: none; }
+body.stale #dot, body.offline #dot { background: var(--warn); }
