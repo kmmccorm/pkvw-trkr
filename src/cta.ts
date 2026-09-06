@@ -2,7 +2,13 @@ import type { Config } from './config';
 import type { CtaError, CtaPrediction } from './types';
 
 export type FetchResult =
-  | { ok: true; predictions: CtaPrediction[]; errors: CtaError[] }
+  | {
+      ok: true;
+      predictions: CtaPrediction[];
+      errors: CtaError[];
+      /** Entries in `prd` that were not usable predictions and were dropped. */
+      malformed: number;
+    }
   | { ok: false; reason: string };
 
 /**
@@ -33,30 +39,88 @@ function isHardError(errors: CtaError[]): boolean {
   return errors.some((e) => /api access key|invalid|unauthor|exceed|not authorized/i.test(e.msg));
 }
 
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value);
+}
+
+/**
+ * Does this `prd[]` entry carry every field the display needs, as a string?
+ *
+ * The API is cast, not validated, everywhere else, and a single entry missing
+ * `prdtm` used to throw inside normalize(). That throw escaped the poller as
+ * an unhandled rejection, Bun exited, systemd restarted the service, the next
+ * fetch got the same entry, and the display sat on "Waiting for the arrivals
+ * service" for as long as CTA kept sending it. Dropping the entry here keeps
+ * the rest of the board up.
+ */
+function toPrediction(value: unknown): CtaPrediction | null {
+  if (!isRecord(value)) return null;
+  const { rt, rtdir, prdtm, prdctdn, stpid } = value;
+  if (
+    typeof rt !== 'string' ||
+    typeof rtdir !== 'string' ||
+    typeof prdtm !== 'string' ||
+    typeof prdctdn !== 'string' ||
+    typeof stpid !== 'string'
+  ) {
+    return null;
+  }
+  return {
+    rt,
+    rtdir,
+    prdtm,
+    prdctdn,
+    stpid,
+    stpnm: typeof value.stpnm === 'string' ? value.stpnm : undefined,
+    vid: typeof value.vid === 'string' ? value.vid : undefined,
+    des: typeof value.des === 'string' ? value.des : undefined,
+    dly: value.dly === true,
+  };
+}
+
+/** An `error[]` entry is only useful if it has a message. */
+function toError(value: unknown): CtaError | null {
+  if (!isRecord(value) || typeof value.msg !== 'string') return null;
+  return {
+    msg: value.msg,
+    stpid: typeof value.stpid === 'string' ? value.stpid : undefined,
+    rt: typeof value.rt === 'string' ? value.rt : undefined,
+  };
+}
+
 /**
  * Interpret a decoded CTA payload.
  *
  * Split out from the network call so it can be tested against recorded
- * fixtures without touching the API.
+ * fixtures without touching the API. Every element is validated, not cast:
+ * whatever comes back from here can be handed to normalize() without a throw.
  */
 export function parsePayload(body: unknown): FetchResult {
-  if (typeof body !== 'object' || body === null || !('bustime-response' in body)) {
+  if (!isRecord(body) || !('bustime-response' in body)) {
     return { ok: false, reason: 'Response did not contain a bustime-response envelope.' };
   }
-  const envelope = (body as Record<string, unknown>)['bustime-response'];
-  if (typeof envelope !== 'object' || envelope === null) {
+  const record = body['bustime-response'];
+  if (!isRecord(record)) {
     return { ok: false, reason: 'bustime-response was not an object.' };
   }
-  const record = envelope as Record<string, unknown>;
-  const predictions = Array.isArray(record.prd) ? (record.prd as CtaPrediction[]) : [];
-  const errors = Array.isArray(record.error) ? (record.error as CtaError[]) : [];
+
+  const rawPredictions: unknown[] = Array.isArray(record.prd) ? record.prd : [];
+  const predictions: CtaPrediction[] = [];
+  for (const raw of rawPredictions) {
+    const p = toPrediction(raw);
+    if (p) predictions.push(p);
+  }
+  const malformed = rawPredictions.length - predictions.length;
+
+  const rawErrors: unknown[] = Array.isArray(record.error) ? record.error : [];
+  const errors = rawErrors.map(toError).filter((e): e is CtaError => e !== null);
 
   if (predictions.length === 0 && isHardError(errors)) {
     return { ok: false, reason: errors.map((e) => e.msg).join('; ') };
   }
   // Anything else is a good response: either predictions, or a benign
   // "no service scheduled" style error, or a mix of both across stops.
-  return { ok: true, predictions, errors };
+  return { ok: true, predictions, errors, malformed };
 }
 
 export async function fetchPredictions(cfg: Config): Promise<FetchResult> {

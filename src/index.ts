@@ -1,5 +1,5 @@
 import { loadConfig } from './config';
-import { fetchPredictions } from './cta';
+import { fetchPredictions, redact } from './cta';
 import { normalize } from './normalize';
 import { recordFailure, recordSuccess } from './cache';
 import { shouldRefresh } from './schedule';
@@ -20,6 +20,10 @@ async function refresh(): Promise<void> {
       console.error(`[cta] fetch failed: ${result.reason}`);
       recordFailure(result.reason);
       return;
+    }
+    if (result.malformed > 0) {
+      // Logged rather than fatal: one odd entry must not take the board down.
+      console.log(`[cta] dropped ${result.malformed} malformed prediction(s)`);
     }
     const matched = normalize(result.predictions, cfg.watch);
     // Counted before truncation: this number is the signal that a configured
@@ -42,6 +46,14 @@ async function refresh(): Promise<void> {
       console.log(`[cta] notice${scope ? ` (${scope})` : ''}: ${e.msg}`);
     }
     recordSuccess(arrivals);
+  } catch (error) {
+    // refresh() is fired from the ticker without an awaiting caller, so a
+    // throw here is an unhandled rejection, which exits the process. Under
+    // systemd that means a restart loop for as long as the input reproduces
+    // it. Record it as a failed poll instead and let the next tick try again.
+    const message = error instanceof Error ? error.message : String(error);
+    console.error(`[cta] refresh threw: ${redact(message, cfg.apiKey)}`);
+    recordFailure(`Unexpected error while processing arrivals: ${redact(message, cfg.apiKey)}`);
   } finally {
     inFlight = false;
   }

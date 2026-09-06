@@ -5,6 +5,8 @@ import predictions from './fixtures/predictions.json';
 import noService from './fixtures/no-service.json';
 import badKey from './fixtures/bad-key.json';
 import mixed from './fixtures/mixed.json';
+import malformed from './fixtures/malformed.json';
+import { normalize } from '../src/normalize';
 
 const KEY = 'abcdefghijklmnopqrstuvwxy';
 
@@ -93,5 +95,91 @@ describe('parsePayload', () => {
     const result = parsePayload({ 'bustime-response': {} });
     expect(result.ok).toBe(true);
     if (result.ok) expect(result.predictions).toEqual([]);
+  });
+
+});
+
+// Every element of prd[] and error[] is validated rather than cast. Before
+// this, one entry missing prdtm passed the parser and threw inside
+// normalize(); the throw escaped the poller as an unhandled rejection, Bun
+// exited, and systemd restarted the service into the same payload.
+describe('parsePayload with malformed elements', () => {
+  const result = parsePayload(malformed);
+
+  test('still reports a good response', () => {
+    expect(result.ok).toBe(true);
+  });
+
+  test('drops entries that are not objects', () => {
+    if (!result.ok) throw new Error('expected ok');
+    for (const p of result.predictions) expect(typeof p).toBe('object');
+  });
+
+  test('drops a prediction that is missing a required field', () => {
+    if (!result.ok) throw new Error('expected ok');
+    expect(result.predictions.some((p) => p.vid === '8216')).toBe(false);
+  });
+
+  test('drops a prediction whose required field has the wrong type', () => {
+    if (!result.ok) throw new Error('expected ok');
+    // stpid as a number, prdctdn as a number.
+    expect(result.predictions.some((p) => p.vid === '1904')).toBe(false);
+    expect(result.predictions.some((p) => p.vid === '1905')).toBe(false);
+  });
+
+  test('keeps every well-formed prediction and counts what it dropped', () => {
+    if (!result.ok) throw new Error('expected ok');
+    expect(result.predictions.map((p) => p.vid)).toEqual(['8425', '1906']);
+    expect(result.malformed).toBe(7);
+  });
+
+  test('coerces a non-boolean dly to false rather than trusting it', () => {
+    if (!result.ok) throw new Error('expected ok');
+    expect(result.predictions.find((p) => p.vid === '1906')!.dly).toBe(false);
+  });
+
+  test('keeps only errors that carry a string message', () => {
+    if (!result.ok) throw new Error('expected ok');
+    expect(result.errors).toEqual([
+      { rt: '72', stpid: '15231', msg: 'No data found for parameter' },
+    ]);
+  });
+
+  test('produces predictions that normalize() can consume without throwing', () => {
+    if (!result.ok) throw new Error('expected ok');
+    const arrivals = normalize(result.predictions, DEFAULT_WATCH);
+    expect(arrivals.map((a) => a.prdtm)).toEqual(['20260909 08:03', '20260909 08:09']);
+  });
+
+  test('treats an all-junk prd as an empty answer, not a failure', () => {
+    const junk = parsePayload({ 'bustime-response': { prd: [null, 1, 'x', {}, []] } });
+    expect(junk.ok).toBe(true);
+    if (junk.ok) {
+      expect(junk.predictions).toEqual([]);
+      expect(junk.malformed).toBe(5);
+      expect(normalize(junk.predictions, DEFAULT_WATCH)).toEqual([]);
+    }
+  });
+
+  test('ignores a prd or error that is not an array', () => {
+    const odd = parsePayload({ 'bustime-response': { prd: { rt: '94' }, error: 'nope' } });
+    expect(odd.ok).toBe(true);
+    if (odd.ok) {
+      expect(odd.predictions).toEqual([]);
+      expect(odd.errors).toEqual([]);
+      expect(odd.malformed).toBe(0);
+    }
+  });
+
+  test('still detects a rejected key when the error array also holds junk', () => {
+    const r = parsePayload({
+      'bustime-response': { error: [null, { msg: 'Invalid API access key supplied' }] },
+    });
+    expect(r.ok).toBe(false);
+  });
+
+  test('reports zero malformed entries for a clean payload', () => {
+    const clean = parsePayload(predictions);
+    if (clean.ok) expect(clean.malformed).toBe(0);
   });
 });
