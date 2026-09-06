@@ -1,0 +1,12 @@
+# Nightly restart. Cheap insurance against slow leaks in a display that is
+# expected to run unattended for months.
+# Install alongside pkvw-trkr-restart.service in /etc/systemd/system/
+[Unit]
+Description=Nightly restart of pkvw-trkr
+
+[Timer]
+OnCalendar=*-*-* 03:30:00
+Persistent=true
+
+[Install]
+WantedBy=timers.target

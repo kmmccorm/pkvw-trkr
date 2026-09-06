@@ -1,0 +1,8 @@
+# This repo is developed on Windows and deployed to Linux. Systemd is
+# unforgiving about carriage returns - a CRLF in an EnvironmentFile becomes
+# part of the variable's value, which would silently corrupt the API key - so
+# everything is normalised to LF in the repository and on checkout.
+* text=auto eol=lf
+
+*.png binary
+*.jpg binary

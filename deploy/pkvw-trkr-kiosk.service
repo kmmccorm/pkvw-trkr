@@ -1,0 +1,35 @@
+# User unit for the Chromium kiosk. Installing this as a *user* unit means it
+# inherits the graphical session's environment, so the same file works whether
+# the Pi is running X11 or Wayland.
+# Install to ~/.config/systemd/user/pkvw-trkr-kiosk.service
+[Unit]
+Description=Chromium kiosk for pkvw-trkr
+PartOf=graphical-session.target
+After=graphical-session.target
+
+[Service]
+Type=simple
+
+# Deliberately no wait-for-service check here. If the arrivals service is slow
+# or down, we still want Chromium up: the page retries on its own and shows
+# "Waiting for the arrivals service", which is far more diagnosable on a wall
+# display than a black screen.
+#
+# On Raspberry Pi OS Bookworm and later the binary is `chromium`.
+# On older releases it is `chromium-browser`.
+ExecStart=/usr/bin/chromium \
+  --kiosk \
+  --noerrdialogs \
+  --disable-infobars \
+  --incognito \
+  --autoplay-policy=no-user-gesture-required \
+  --disable-session-crashed-bubble \
+  --disable-features=Translate \
+  --check-for-update-interval=31536000 \
+  http://127.0.0.1:3000
+
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=graphical-session.target

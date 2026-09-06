@@ -1,0 +1,13 @@
+{
+  "bustime-response": {
+    "prd": [
+      {
+        "tmstmp": "20260909 07:49", "typ": "A", "stpnm": "California & North Ave",
+        "stpid": "15231", "vid": "8216", "rt": "94", "rtdd": "94",
+        "rtdir": "Northbound", "des": "Addison/Rockwell", "prdtm": "20260909 07:55",
+        "dly": false, "prdctdn": "5", "stsd": "2026-09-09"
+      }
+    ],
+    "error": [ { "stpid": "890", "msg": "No service scheduled" } ]
+  }
+}

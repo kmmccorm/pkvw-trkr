@@ -1,0 +1,8 @@
+{
+  "bustime-response": {
+    "error": [
+      { "rt": "72", "stpid": "15231", "msg": "No data found for parameter" },
+      { "stpid": "890", "msg": "No arrival times" }
+    ]
+  }
+}

@@ -1,0 +1,6 @@
+[Unit]
+Description=Restart pkvw-trkr
+
+[Service]
+Type=oneshot
+ExecStart=/bin/systemctl restart pkvw-trkr.service

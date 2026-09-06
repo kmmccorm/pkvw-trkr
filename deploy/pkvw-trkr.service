@@ -1,0 +1,35 @@
+# System unit for the arrivals service.
+# Install to /etc/systemd/system/pkvw-trkr.service
+[Unit]
+Description=pkvw-trkr CTA bus arrivals service
+Documentation=https://github.com/kmccormack/pkvw-trkr
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=pi
+Group=pi
+WorkingDirectory=/opt/pkvw-trkr
+
+# Holds CTA_API_KEY. Root-owned, mode 600: systemd reads it as PID 1 before
+# dropping to User=, so the service account never needs access to the file.
+EnvironmentFile=/etc/pkvw-trkr.env
+
+ExecStart=/usr/local/bin/bun run src/index.ts
+Restart=always
+RestartSec=5
+
+# The service reads nothing and writes nothing outside its own directory.
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=full
+ProtectHome=read-only
+ProtectControlGroups=true
+RestrictSUIDSGID=true
+
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=multi-user.target

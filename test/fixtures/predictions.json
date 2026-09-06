@@ -1,0 +1,38 @@
+{
+  "bustime-response": {
+    "prd": [
+      {
+        "tmstmp": "20260909 07:49", "typ": "A", "stpnm": "California & North Ave",
+        "stpid": "15231", "vid": "8425", "dstp": 22466, "rt": "94", "rtdd": "94",
+        "rtdir": "Northbound", "des": "Addison/Rockwell", "prdtm": "20260909 08:09",
+        "tablockid": "94 -620", "tatripid": "330", "origtatripno": "280444235",
+        "dly": false, "dyn": 0, "prdctdn": "19", "zone": "", "psgld": "",
+        "stst": 79590, "stsd": "2026-09-09", "flagstop": 0
+      },
+      {
+        "tmstmp": "20260909 07:49", "typ": "A", "stpnm": "North Ave & Western",
+        "stpid": "890", "vid": "1904", "dstp": 1203, "rt": "72", "rtdd": "72",
+        "rtdir": "Eastbound", "des": "Clark", "prdtm": "20260909 07:51",
+        "tablockid": "72 -401", "tatripid": "812", "origtatripno": "280444100",
+        "dly": false, "dyn": 0, "prdctdn": "DUE", "zone": "", "psgld": "",
+        "stst": 78100, "stsd": "2026-09-09", "flagstop": 0
+      },
+      {
+        "tmstmp": "20260909 07:49", "typ": "A", "stpnm": "California & North Ave",
+        "stpid": "15231", "vid": "8216", "dstp": 5497, "rt": "94", "rtdd": "94",
+        "rtdir": "Northbound", "des": "Addison/Rockwell", "prdtm": "20260909 07:55",
+        "tablockid": "94 -619", "tatripid": "329", "origtatripno": "280444234",
+        "dly": true, "dyn": 0, "prdctdn": "5", "zone": "", "psgld": "",
+        "stst": 78270, "stsd": "2026-09-09", "flagstop": 0
+      },
+      {
+        "tmstmp": "20260909 07:49", "typ": "A", "stpnm": "California & North Ave",
+        "stpid": "15231", "vid": "1777", "dstp": 900, "rt": "72", "rtdd": "72",
+        "rtdir": "Eastbound", "des": "Clark", "prdtm": "20260909 07:52",
+        "tablockid": "72 -402", "tatripid": "813", "origtatripno": "280444101",
+        "dly": false, "dyn": 0, "prdctdn": "3", "zone": "", "psgld": "",
+        "stst": 78150, "stsd": "2026-09-09", "flagstop": 0
+      }
+    ]
+  }
+}
