@@ -119,6 +119,50 @@ describe('HTTP routes', () => {
     expect(typeof body.now).toBe('number');
   });
 
+  test('serves the script and stylesheet the page loads, with the right types', async () => {
+    for (const [path, type, marker] of [
+      ['/style.css', 'text/css; charset=utf-8', 'col.route'],
+      ['/app.js', 'text/javascript; charset=utf-8', "from './countdown.js'"],
+      ['/countdown.js', 'text/javascript; charset=utf-8', 'export function viewModel'],
+    ]) {
+      const res = await get(path!);
+      expect(res.status).toBe(200);
+      expect(res.headers.get('content-type')).toBe(type!);
+      expect(await res.text()).toContain(marker!);
+    }
+  });
+
+  test('sends a strict Content-Security-Policy and hardening headers on every response', async () => {
+    for (const path of ['/', '/app.js', '/api/arrivals', '/healthz', '/nope']) {
+      const res = await get(path);
+      const csp = res.headers.get('content-security-policy')!;
+      expect(csp).toContain("default-src 'none'");
+      expect(csp).toContain("script-src 'self'");
+      expect(csp).toContain("style-src 'self'");
+      expect(csp).toContain("connect-src 'self'");
+      expect(csp).toContain("frame-ancestors 'none'");
+      expect(csp).not.toContain('unsafe-inline');
+      expect(res.headers.get('x-content-type-options')).toBe('nosniff');
+      expect(res.headers.get('x-frame-options')).toBe('DENY');
+      expect(res.headers.get('referrer-policy')).toBe('no-referrer');
+      expect(res.headers.get('cache-control')).toBe('no-store');
+    }
+  });
+
+  test('ships no inline script or style, so the policy can be enforced', async () => {
+    const html = await (await get('/')).text();
+    expect(html).not.toMatch(/<script(?![^>]*\bsrc=)/);
+    expect(html).not.toContain('<style');
+    expect(html).not.toMatch(/\sstyle=/);
+    expect(html).not.toMatch(/\son[a-z]+=/);
+  });
+
+  test('exposes only the listed files, never the directory', async () => {
+    expect((await get('/index.html/../../package.json')).status).toBe(404);
+    expect((await get('/public/index.html')).status).toBe(404);
+    expect((await get('/%2e%2e/package.json')).status).toBe(404);
+  });
+
   test('answers 404 for anything else', async () => {
     expect((await get('/nope')).status).toBe(404);
     expect((await get('/api')).status).toBe(404);

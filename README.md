@@ -86,7 +86,10 @@ scheduler ──every 2 min, weekdays 06:00–18:00 CT──► CTA getpredictio
 | `src/poller.ts` | The fetch, normalize, cache loop, with its dependencies injectable so it runs in tests without a network or a timer. |
 | `src/server.ts` | Routes: `/`, `/api/arrivals`, `/healthz`. |
 | `src/index.ts` | Bootstrap only: load config, start the poller, start the server. |
-| `public/index.html` | The display. Vanilla, no build step. |
+| `public/index.html` | The display markup. No inline script or style, so the strict Content-Security-Policy can be enforced. |
+| `public/countdown.js` | Pure: age, local countdown, staleness, and the whole view model. Unit tested directly. |
+| `public/app.js` | Polls `/api/arrivals` and paints the view model. DOM only. |
+| `public/style.css` | The stylesheet, tuned for 800x480. |
 | `scripts/stub-cta.ts` | Fake CTA endpoint for display work. Dev only. |
 
 ## Decisions worth knowing
@@ -94,7 +97,22 @@ scheduler ──every 2 min, weekdays 06:00–18:00 CT──► CTA getpredictio
 **Bound to 127.0.0.1.** The service holds the API key, so it is not reachable
 from the LAN.
 
-**The key is redacted before logging.** It travels as a query parameter, so any
+**The page ships a strict Content-Security-Policy.** Every response carries
+`default-src 'none'` with `script-src`, `style-src` and `connect-src` limited
+to `'self'`, plus `nosniff`, `frame-ancestors 'none'` and `no-referrer`. The
+page loads only from loopback, so this is defence in depth: it means text from
+CTA could not run as script even if a future change stopped escaping it. It is
+also why `index.html` has no inline script or style; the logic lives in
+`app.js` and `countdown.js`, the styling in `style.css`, and the server maps
+exactly those paths rather than walking the directory.
+
+**The display logic is a pure function.** `countdown.js` turns the last
+payload, the clocks and the offline flag into a view model; `app.js` only
+paints it. The countdown-to-DUE and the staleness cutoff are the two pieces of
+client logic that could silently show wrong numbers, so they are unit tested
+directly, and `bun run typecheck` covers the JavaScript through JSDoc.
+
+ It travels as a query parameter, so any
 error echoing the request URL would otherwise write it into journald, where it
 survives reboots. See `redact()` in `src/cta.ts`.
 
