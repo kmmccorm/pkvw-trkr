@@ -105,6 +105,15 @@ logic is the service window, which uses `Intl` with an explicit
 `America/Chicago`, so the display does not depend on the Pi's own clock
 settings.
 
+**Every payload element is validated, not cast.** `parsePayload()` checks that
+each `prd[]` entry carries the fields the display needs, as strings, and drops
+any that do not. Before this, one entry missing `prdtm` threw inside
+`normalize()`, the throw escaped the poller as an unhandled rejection, Bun
+exited, and systemd restarted the service straight back into the same payload.
+Dropped entries are counted and logged as `malformed`. As a second layer,
+`refresh()` in `src/index.ts` catches anything unexpected and records it as a
+failed poll rather than letting it reach the process.
+
 **`prdctdn` is a string, not a number.** CTA sends `"DUE"` when a bus is
 arriving. It is carried through verbatim, per CTA's own wording.
 
