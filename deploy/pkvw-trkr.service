@@ -2,31 +2,80 @@
 # Install to /etc/systemd/system/pkvw-trkr.service
 [Unit]
 Description=pkvw-trkr CTA bus arrivals service
-Documentation=https://github.com/kmccormack/pkvw-trkr
+Documentation=https://github.com/kmmccorm/pkvw-trkr
 After=network-online.target
 Wants=network-online.target
 
 [Service]
 Type=simple
-User=pi
-Group=pi
 WorkingDirectory=/opt/pkvw-trkr
 
+# Run as a throwaway system user that exists only while the service does.
+# The default Pi account has passwordless sudo and owned the code directory,
+# so anything that gained code execution had a short path to root and could
+# rewrite its own source. The dynamic user owns nothing: /opt/pkvw-trkr is
+# root-owned and read-only from in here.
+DynamicUser=yes
+
 # Holds CTA_API_KEY. Root-owned, mode 600: systemd reads it as PID 1 before
-# dropping to User=, so the service account never needs access to the file.
+# dropping to the service user, which never needs access to the file.
 EnvironmentFile=/etc/pkvw-trkr.env
+
+# Bun caches transpiled TypeScript under $HOME, but only for files above a
+# size threshold that nothing here comes close to, and the sandbox has no
+# writable home anyway. Disable it outright rather than let Bun probe for one.
+Environment=BUN_RUNTIME_TRANSPILER_CACHE_PATH=0
 
 ExecStart=/usr/local/bin/bun run src/index.ts
 Restart=always
 RestartSec=5
 
-# The service reads nothing and writes nothing outside its own directory.
-NoNewPrivileges=true
-PrivateTmp=true
-ProtectSystem=full
-ProtectHome=read-only
-ProtectControlGroups=true
-RestrictSUIDSGID=true
+# --- Sandbox ---------------------------------------------------------------
+# The service reads its own directory and the key file, talks HTTPS to CTA,
+# and listens on loopback. Everything below removes what it does not need.
+# `systemd-analyze security pkvw-trkr` scores the result.
+
+# Filesystem: the whole tree is read-only. The service writes nothing.
+ProtectSystem=strict
+ProtectHome=yes
+PrivateTmp=yes
+PrivateDevices=yes
+UMask=0077
+
+# Kernel and other processes are off limits.
+ProtectKernelTunables=yes
+ProtectKernelModules=yes
+ProtectKernelLogs=yes
+ProtectControlGroups=yes
+ProtectClock=yes
+ProtectHostname=yes
+ProtectProc=invisible
+
+# No privilege gain of any kind.
+NoNewPrivileges=yes
+CapabilityBoundingSet=
+AmbientCapabilities=
+RestrictSUIDSGID=yes
+RestrictNamespaces=yes
+RestrictRealtime=yes
+LockPersonality=yes
+RemoveIPC=yes
+
+# Networking: IPv4/IPv6 for CTA and the loopback listener. AF_UNIX and
+# AF_NETLINK stay because glibc's resolver uses netlink to discover which
+# address families are configured, and the runtime may open local sockets.
+RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6 AF_NETLINK
+
+# System calls: the standard service allow-list. A blocked call fails with
+# EPERM rather than killing the process, so a runtime that probes for an
+# optional feature degrades instead of dying.
+SystemCallFilter=@system-service
+SystemCallFilter=~@privileged
+SystemCallErrorNumber=EPERM
+SystemCallArchitectures=native
+
+# Deliberately NOT set: MemoryDenyWriteExecute. Bun runs on JavaScriptCore,
+# whose JIT needs writable-then-executable memory; this would crash it.
 
 StandardOutput=journal
 StandardError=journal

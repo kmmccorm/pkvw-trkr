@@ -17,10 +17,21 @@ any one user's home directory.
 ## 2. Install the app
 
 ```bash
-sudo mkdir -p /opt/pkvw-trkr
-sudo chown pi:pi /opt/pkvw-trkr
-git clone <repo> /opt/pkvw-trkr
-cd /opt/pkvw-trkr && bun install
+sudo git clone https://github.com/kmmccorm/pkvw-trkr /opt/pkvw-trkr
+```
+
+Root-owned on purpose. The service runs as a throwaway system user (see
+`DynamicUser=` in the unit) that cannot write to this directory, so a bug in
+the service cannot rewrite its own code, and the `pi` account with its
+passwordless sudo is not involved at runtime. No `bun install` is needed: the
+runtime has zero dependencies. Run it only if you want to typecheck or test on
+the Pi.
+
+To update later:
+
+```bash
+sudo git -C /opt/pkvw-trkr pull
+sudo systemctl restart pkvw-trkr
 ```
 
 ## 3. Provide the API key
@@ -55,6 +66,49 @@ systemctl --user enable --now pkvw-trkr-kiosk.service
 
 Check the Chromium binary name first — `chromium` on Bookworm and later,
 `chromium-browser` on older releases — and edit `ExecStart` if needed.
+
+### Verify the sandbox
+
+The unit runs the service as a dynamic user inside a systemd sandbox: the
+filesystem is read-only, the kernel and
+other processes are hidden, no capabilities are granted, and system calls are
+filtered. Confirm it started and see the score:
+
+```bash
+systemctl status pkvw-trkr
+journalctl -u pkvw-trkr -b
+systemd-analyze security pkvw-trkr
+```
+
+A working service logs `listening on http://127.0.0.1:3000`. If it does not
+start, the journal names the failing directive in most cases. The ones with
+any real chance of biting on a new OS or Bun release, and what to do:
+
+| Symptom | Directive | Fix |
+|---|---|---|
+| Killed with `SIGSYS`, or Bun exits at once with no message | `SystemCallFilter` | Add `SystemCallFilter=@system-service @resources` or, to diagnose, comment it out and re-test |
+| Fetch fails with a DNS or connect error while `curl` from a shell works | `RestrictAddressFamilies` | Confirm `AF_NETLINK` is still listed; it is what the resolver uses to discover configured address families |
+| Journal warnings about a read-only filesystem or a missing home | `ProtectSystem`, `ProtectHome` | The service should write nothing. Find what is trying to and stop it, rather than opening the sandbox |
+
+Never add `MemoryDenyWriteExecute=`: Bun's JavaScript engine needs
+writable-then-executable memory for its JIT and will crash.
+
+### Upgrading a Pi set up with the earlier unit
+
+The first version of the unit ran as `pi` from a `pi`-owned checkout. To move
+to the sandboxed layout:
+
+```bash
+sudo systemctl stop pkvw-trkr
+sudo chown -R root:root /opt/pkvw-trkr
+sudo git -C /opt/pkvw-trkr pull
+sudo cp /opt/pkvw-trkr/deploy/pkvw-trkr.service /etc/systemd/system/
+sudo systemctl daemon-reload
+sudo systemctl start pkvw-trkr
+```
+
+`/etc/pkvw-trkr.env` needs no change. The `pi` user keeps read access to the
+checkout, so `bun test` there still works.
 
 ## 5. Stop the screen blanking
 
