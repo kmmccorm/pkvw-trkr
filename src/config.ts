@@ -56,29 +56,32 @@ export const DEFAULT_WATCH: WatchedRoute[] = [
   { rt: '72', stpid: '890', label: 'North Ave eastbound' },
 ];
 
-/**
- * Read the service window from the environment, falling back to the real one.
- *
- * Exists so the display can be exercised outside 06:00-18:00 on a weekday
- * without editing source: `WINDOW_START_HOUR=0 WINDOW_END_HOUR=24
- * WINDOW_DAYS=1,2,3,4,5,6,7 bun run dev`.
- */
-function windowFromEnv(): ServiceWindow {
-  const days = Bun.env.WINDOW_DAYS?.split(',')
-    .map((d) => Number(d.trim()))
-    .filter((d) => Number.isInteger(d) && d >= 1 && d <= 7);
+/** Where a value came from, for tests and for the environment on the Pi. */
+export type Env = Record<string, string | undefined>;
 
-  return {
-    startHour: Number(Bun.env.WINDOW_START_HOUR ?? DEFAULT_WINDOW.startHour),
-    endHour: Number(Bun.env.WINDOW_END_HOUR ?? DEFAULT_WINDOW.endHour),
-    days: days && days.length > 0 ? days : DEFAULT_WINDOW.days,
-  };
+/**
+ * Thrown for any setting that would leave the service running but useless.
+ *
+ * Every numeric variable used to be read with Number() and used as-is. The
+ * consequences were all silent: PORT=abc made Bun pick a random port while
+ * Chromium kept pointing at 3000, WINDOW_START_HOUR=abc meant the window never
+ * opened, MAX_ROWS=abc dropped every row. Failing at startup puts the mistake
+ * in journalctl next to the unit's restart message, where it will be found.
+ */
+export class ConfigError extends Error {
+  override name = 'ConfigError';
 }
 
-function requireEnv(name: string): string {
-  const value = Bun.env[name];
+/** Treat an empty or whitespace-only variable as unset. */
+function read(env: Env, name: string): string | undefined {
+  const value = env[name]?.trim();
+  return value ? value : undefined;
+}
+
+function requireEnv(env: Env, name: string): string {
+  const value = read(env, name);
   if (!value) {
-    throw new Error(
+    throw new ConfigError(
       `${name} is not set. Locally: copy .env.example to .env. ` +
         `On the Pi: add it to /etc/pkvw-trkr.env.`,
     );
@@ -86,19 +89,77 @@ function requireEnv(name: string): string {
   return value;
 }
 
-export function loadConfig(): Config {
+function readInt(
+  env: Env,
+  name: string,
+  fallback: number,
+  range: { min: number; max: number },
+): number {
+  const raw = read(env, name);
+  if (raw === undefined) return fallback;
+  const value = Number(raw);
+  if (!Number.isInteger(value) || value < range.min || value > range.max) {
+    throw new ConfigError(
+      `${name} must be a whole number from ${range.min} to ${range.max}, got "${raw}".`,
+    );
+  }
+  return value;
+}
+
+function readTimezone(env: Env, name: string, fallback: string): string {
+  const value = read(env, name) ?? fallback;
+  try {
+    new Intl.DateTimeFormat('en-US', { timeZone: value });
+  } catch {
+    throw new ConfigError(`${name} must be an IANA time zone such as America/Chicago, got "${value}".`);
+  }
+  return value;
+}
+
+/**
+ * Read the service window from the environment, falling back to the real one.
+ *
+ * Exists so the display can be exercised outside 06:00-18:00 on a weekday
+ * without editing source: `WINDOW_START_HOUR=0 WINDOW_END_HOUR=24
+ * WINDOW_DAYS=1,2,3,4,5,6,7 bun run dev`.
+ */
+function windowFromEnv(env: Env): ServiceWindow {
+  const startHour = readInt(env, 'WINDOW_START_HOUR', DEFAULT_WINDOW.startHour, { min: 0, max: 23 });
+  const endHour = readInt(env, 'WINDOW_END_HOUR', DEFAULT_WINDOW.endHour, { min: 1, max: 24 });
+  if (startHour >= endHour) {
+    throw new ConfigError(
+      `WINDOW_START_HOUR (${startHour}) must be earlier than WINDOW_END_HOUR (${endHour}).`,
+    );
+  }
+
+  const rawDays = read(env, 'WINDOW_DAYS');
+  let days = DEFAULT_WINDOW.days;
+  if (rawDays !== undefined) {
+    const parsed = rawDays.split(',').map((d) => Number(d.trim()));
+    if (parsed.some((d) => !Number.isInteger(d) || d < 1 || d > 7)) {
+      throw new ConfigError(
+        `WINDOW_DAYS must be a comma-separated list of ISO weekdays 1-7 (Monday = 1), got "${rawDays}".`,
+      );
+    }
+    days = [...new Set(parsed)].sort((a, b) => a - b);
+  }
+
+  return { startHour, endHour, days };
+}
+
+export function loadConfig(env: Env = Bun.env): Config {
   return {
-    apiKey: requireEnv('CTA_API_KEY'),
-    port: Number(Bun.env.PORT ?? 3000),
-    host: Bun.env.HOST ?? '127.0.0.1',
-    baseUrl: Bun.env.CTA_BASE_URL ?? 'https://www.ctabustracker.com/bustime/api/v3',
-    timezone: Bun.env.TZ_NAME ?? 'America/Chicago',
+    apiKey: requireEnv(env, 'CTA_API_KEY'),
+    port: readInt(env, 'PORT', 3000, { min: 1, max: 65535 }),
+    host: read(env, 'HOST') ?? '127.0.0.1',
+    baseUrl: read(env, 'CTA_BASE_URL') ?? 'https://www.ctabustracker.com/bustime/api/v3',
+    timezone: readTimezone(env, 'TZ_NAME', 'America/Chicago'),
     watch: DEFAULT_WATCH,
-    window: windowFromEnv(),
+    window: windowFromEnv(env),
     refreshMs: 120_000,
     tickMs: 30_000,
     staleAfterMs: 300_000,
     fetchTimeoutMs: 10_000,
-    maxRows: Number(Bun.env.MAX_ROWS ?? 5),
+    maxRows: readInt(env, 'MAX_ROWS', 5, { min: 1, max: 50 }),
   };
 }

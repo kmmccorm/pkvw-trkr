@@ -105,6 +105,15 @@ logic is the service window, which uses `Intl` with an explicit
 `America/Chicago`, so the display does not depend on the Pi's own clock
 settings.
 
+**Configuration is validated at startup.** `PORT`, `MAX_ROWS`, the window
+hours, `WINDOW_DAYS` and `TZ_NAME` are range-checked and the service exits with
+a one-line message if any is wrong. Each of these used to be read with
+`Number()` and used as-is, and every failure mode was silent: `PORT=abc` made
+Bun pick a random port while Chromium kept pointing at 3000,
+`WINDOW_START_HOUR=abc` meant the window never opened, and `MAX_ROWS=abc`
+dropped every row. Failing fast puts the mistake in `journalctl` next to the
+unit's restart message, where it will be found.
+
 **Every payload element is validated, not cast.** `parsePayload()` checks that
 each `prd[]` entry carries the fields the display needs, as strings, and drops
 any that do not. Before this, one entry missing `prdtm` threw inside

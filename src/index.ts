@@ -1,11 +1,24 @@
-import { loadConfig } from './config';
+import { ConfigError, loadConfig } from './config';
 import { fetchPredictions, redact } from './cta';
 import { normalize } from './normalize';
 import { recordFailure, recordSuccess } from './cache';
 import { shouldRefresh } from './schedule';
 import { startServer } from './server';
 
-const cfg = loadConfig();
+function load() {
+  try {
+    return loadConfig();
+  } catch (error) {
+    if (error instanceof ConfigError) {
+      // One line, no stack: this is a setup mistake, not a bug.
+      console.error(`[pkvw-trkr] ${error.message}`);
+      process.exit(1);
+    }
+    throw error;
+  }
+}
+
+const cfg = load();
 let lastAttemptAt: number | null = null;
 let inFlight = false;
 
