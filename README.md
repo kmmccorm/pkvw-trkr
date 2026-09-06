@@ -79,7 +79,9 @@ scheduler ──every 2 min, weekdays 06:00–18:00 CT──► CTA getpredictio
 | `src/normalize.ts` | Pure: filter to watched route/stop pairs, project, sort. |
 | `src/cache.ts` | The single in-memory state record. |
 | `src/schedule.ts` | Timezone-aware service window. |
+| `src/poller.ts` | The fetch, normalize, cache loop, with its dependencies injectable so it runs in tests without a network or a timer. |
 | `src/server.ts` | Routes: `/`, `/api/arrivals`, `/healthz`. |
+| `src/index.ts` | Bootstrap only: load config, start the poller, start the server. |
 | `public/index.html` | The display. Vanilla, no build step. |
 | `scripts/stub-cta.ts` | Fake CTA endpoint for display work. Dev only. |
 
