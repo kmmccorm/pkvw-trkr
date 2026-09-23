@@ -32,6 +32,23 @@ To update later:
 ```bash
 sudo git -C /opt/pkvw-trkr pull
 sudo systemctl restart pkvw-trkr
+systemctl --user restart pkvw-trkr-kiosk
+```
+
+The kiosk restart is not optional when anything under `public/` changed. The
+server reads those files per request, so it needs no restart to serve them —
+but Chromium loaded the page at boot and only ever polls `/api/arrivals`, so
+it keeps rendering the old display against new data until the browser
+restarts. The nightly `pkvw-trkr-restart.timer` does not cover this: it
+restarts the service alone.
+
+If the pull changed anything in `deploy/`, the installed unit files are copies
+and do not update with it:
+
+```bash
+sudo cp /opt/pkvw-trkr/deploy/pkvw-trkr.service /etc/systemd/system/
+sudo systemctl daemon-reload
+sudo systemctl restart pkvw-trkr
 ```
 
 ## 3. Provide the API key
@@ -105,10 +122,15 @@ sudo git -C /opt/pkvw-trkr pull
 sudo cp /opt/pkvw-trkr/deploy/pkvw-trkr.service /etc/systemd/system/
 sudo systemctl daemon-reload
 sudo systemctl start pkvw-trkr
+systemctl --user restart pkvw-trkr-kiosk
 ```
 
 `/etc/pkvw-trkr.env` needs no change. The `pi` user keeps read access to the
 checkout, so `bun test` there still works.
+
+Run the last line as the desktop user, not under `sudo` — it is a user unit,
+and `sudo systemctl --user` talks to root's session manager instead of the one
+running Chromium.
 
 ## 5. Stop the screen blanking
 
