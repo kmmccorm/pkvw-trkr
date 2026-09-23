@@ -13,8 +13,19 @@ describe('loadConfig defaults', () => {
     expect(cfg.timezone).toBe('America/Chicago');
     expect(cfg.window).toEqual(DEFAULT_WINDOW);
     expect(cfg.watch).toBe(DEFAULT_WATCH);
-    expect(cfg.maxRows).toBe(5);
+    expect(cfg.maxRows).toBe(6);
     expect(cfg.baseUrl).toBe('https://www.ctabustracker.com/bustime/api/v3');
+  });
+
+  // The board is one column per watched route, each with SLOTS strips, but
+  // SLOTS lives in public/app.js and maxRows in src/config.ts with nothing
+  // linking them. When they disagree the board still renders, so the only
+  // symptom is a slot that stays dimmed no matter how many buses are due.
+  test('sends enough rows to fill every slot on the board', async () => {
+    const appJs = await Bun.file(new URL('../public/app.js', import.meta.url)).text();
+    const slots = Number(/const SLOTS = (\d+)/.exec(appJs)?.[1]);
+    expect(slots).toBeGreaterThan(0);
+    expect(load({}).maxRows).toBeGreaterThanOrEqual(DEFAULT_WATCH.length * slots);
   });
 
   test('refuses to start without an API key', () => {
@@ -27,7 +38,7 @@ describe('loadConfig defaults', () => {
     const cfg = load({ PORT: '', WINDOW_START_HOUR: '  ', MAX_ROWS: '' });
     expect(cfg.port).toBe(3000);
     expect(cfg.window.startHour).toBe(6);
-    expect(cfg.maxRows).toBe(5);
+    expect(cfg.maxRows).toBe(6);
   });
 });
 

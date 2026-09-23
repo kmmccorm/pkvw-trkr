@@ -37,10 +37,16 @@ export interface Config {
   staleAfterMs: number;
   fetchTimeoutMs: number;
   /**
-   * Most rows to send to the display. The target panel is 800x480, which fits
-   * five rows at a size that is readable at a glance; anything beyond that
-   * would be pushed off screen, so it is dropped here rather than rendered
-   * invisibly.
+   * Most rows to send to the display.
+   *
+   * The board is one column per watched route, each showing SLOTS strips (3,
+   * in public/app.js), so it can show two routes x three strips. Sending fewer
+   * than that means a column can never fill: at 5 the best case was 3 and 2,
+   * with the last slot permanently dimmed however many buses were coming.
+   *
+   * Rows beyond this are dropped here rather than rendered off screen. app.js
+   * slices per route, so a lopsided payload cannot overflow one column - the
+   * short one pads with empty strips.
    */
   maxRows: number;
 }
@@ -160,6 +166,6 @@ export function loadConfig(env: Env = Bun.env): Config {
     tickMs: 30_000,
     staleAfterMs: 300_000,
     fetchTimeoutMs: 10_000,
-    maxRows: readInt(env, 'MAX_ROWS', 5, { min: 1, max: 50 }),
+    maxRows: readInt(env, 'MAX_ROWS', 6, { min: 1, max: 50 }),
   };
 }

@@ -150,18 +150,26 @@ failed poll rather than letting it reach the process.
 **`prdctdn` is a string, not a number.** CTA sends `"DUE"` when a bus is
 arriving. It is carried through verbatim, per CTA's own wording.
 
-**At most five rows are sent to the display** (`MAX_ROWS`, default 5). Five is
-what fits on an 800x480 panel at a size readable at a glance. Truncation
-happens after sorting, so the rows kept are always the soonest to arrive.
-Rows dropped for lack of space are counted separately from rows dropped by the
-route/stop filter, so the filter's diagnostic stays meaningful.
+**At most six rows are sent to the display** (`MAX_ROWS`, default 6). The
+board is one column per watched route, each with three strips, so six is what
+it takes to fill both. Sending fewer means a column can never fill: at five the
+best case was three and two, with the last slot dimmed however many buses were
+due. Truncation happens after sorting, so the rows kept are always the soonest
+to arrive, and `app.js` slices per route, so a lopsided payload pads the short
+column with empty strips rather than overflowing the long one. Rows dropped for
+lack of space are counted separately from rows dropped by the route/stop
+filter, so the filter's diagnostic stays meaningful.
 
-**A delayed bus is shown by colour, not a badge.** CTA's `dly` flag originally
-rendered as a "DELAYED" pill, but there is no room for it beside the route
-number at 800px wide - it overflowed the cell and was clipped into an
-unreadable fragment. The route number and the minute count are now amber
-instead, which puts the warning on the value the delay actually makes
-unreliable. On a larger screen a text badge would be worth restoring.
+`SLOTS` in `public/app.js` and `maxRows` here have to agree, and nothing in the
+type system links them, so a test in `test/config.test.ts` reads `SLOTS` out of
+`app.js` and asserts the default covers every column. A mismatch is otherwise
+invisible: the board still renders, it just never fills.
+
+**A delayed bus replaces "Min" with "Delayed".** CTA's `dly` flag turns the
+strip's minute digits orange and swaps the unit label. The earlier table layout
+had no room for the word beside the route number - it overflowed the cell and
+was clipped into an unreadable fragment - but the split-flap strip has a label
+slot already, so the wording carries the meaning and the colour reinforces it.
 
 **Route/stop pairs are re-filtered after fetching.** CTA's `rt` parameter
 filters globally rather than per stop, so a route 72 prediction can come back
