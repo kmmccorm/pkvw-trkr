@@ -1,0 +1,127 @@
+/* Served as /style.css. No inline style anywhere in index.html (strict CSP).
+   Tuned for the 800x480 panel: values are fixed px, not clamp(), because the
+   display is a fixed panel and every clamp() resolved to its vh term anyway. */
+
+/* Self-hosted so the page loads from loopback only. Add /oswald.woff2 to the
+   STATIC map in src/server.ts and `font-src 'self'` to the CSP. */
+@font-face {
+  font-family: 'Oswald';
+  src: url('/oswald.woff2') format('woff2');
+  font-weight: 400 700;
+  font-display: swap;
+}
+
+:root {
+  --bg: #141210;
+  --flap: #2c2823; --seam: #1b1815; --line: #2a2621;
+  --amber: #f5c04a; --amber-deep: #d9a63a;
+  --ink: #141210;            /* text on a lit amber flap */
+  --text: #eadcb8;           /* words on dark flaps */
+  --muted: #b89a5a;          /* labels, header, footer */
+  --dim: #6a5a38;            /* leading zero */
+  --empty: #3a332a;          /* unused slot */
+  --delay: #ff7a3d;
+  --tile: 56px; --gap: 6px; --strip-gap: 8px;
+}
+
+* { box-sizing: border-box; }
+html, body { height: 100%; margin: 0; }
+body {
+  width: 800px; height: 480px; overflow: hidden;
+  background: var(--bg); color: var(--amber);
+  font-family: 'Oswald', 'Arial Narrow', 'Liberation Sans Narrow', sans-serif;
+  display: flex; flex-direction: column;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* A flap: dark tile with a horizontal seam at the midline. */
+.flap {
+  background: linear-gradient(var(--flap) 49%, var(--seam) 49%, var(--seam) 51%, var(--flap) 51%);
+  border-radius: 5px;
+  display: flex; align-items: center; justify-content: center;
+}
+.flap.lit {
+  background: linear-gradient(var(--amber) 49%, var(--amber-deep) 49%, var(--amber-deep) 51%, var(--amber) 51%);
+  color: var(--ink);
+}
+
+header {
+  height: 50px; flex: none;
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 0 24px; border-bottom: 1px solid var(--line);
+}
+h1 {
+  margin: 0; font-size: 20px; font-weight: 500;
+  letter-spacing: .28em; text-transform: uppercase; color: var(--muted);
+}
+#clock { font-size: 24px; font-weight: 600; letter-spacing: .06em; font-variant-numeric: tabular-nums; }
+
+main {
+  flex: 1; min-height: 0;
+  display: grid; grid-template-columns: 1fr 1fr; gap: 16px;
+  padding: 14px 24px;
+}
+
+.route {
+  display: flex; flex-direction: column; gap: var(--strip-gap); min-width: 0;
+}
+.route-head {
+  display: grid; grid-template-columns: var(--tile) var(--tile) 1fr;
+  gap: var(--gap); height: 64px; flex: none;
+}
+/* Route digits stay unlit: amber-inverted means one thing on this board, DUE. */
+.route-head .digit { font-size: 46px; font-weight: 700; }
+.route-label {
+  flex-direction: column; align-items: stretch; justify-content: center;
+  padding: 0 16px; color: var(--text); min-width: 0;
+}
+.route-label .dir {
+  font-size: 26px; font-weight: 500; letter-spacing: .12em; text-transform: uppercase;
+  line-height: 1.1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.route-label .sub {
+  font-size: 13px; letter-spacing: .18em; text-transform: uppercase; color: var(--muted);
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+
+/* Always three strips so the two columns stay balanced. */
+.slots { flex: 1; display: grid; grid-template-rows: repeat(3, 1fr); gap: var(--strip-gap); }
+.strip { display: grid; grid-template-columns: 1fr var(--tile) var(--tile); gap: var(--gap); }
+.strip .when {
+  justify-content: space-between; padding: 0 16px; color: var(--text);
+}
+.strip .time { font-size: 26px; font-weight: 500; letter-spacing: .08em; font-variant-numeric: tabular-nums; }
+.strip .unit { font-size: 13px; letter-spacing: .2em; text-transform: uppercase; color: var(--muted); }
+.strip .digit { font-size: 46px; font-weight: 600; }
+.strip .digit.lead { color: var(--dim); }
+.strip .word { grid-column: span 2; font-size: 40px; font-weight: 700; letter-spacing: .08em; }
+
+.strip.delayed .digit { color: var(--delay); }
+.strip.delayed .unit { color: var(--delay); }
+
+.strip.empty .when { color: var(--dim); font-size: 13px; letter-spacing: .2em; text-transform: uppercase; }
+.strip.empty .digit { color: var(--empty); }
+
+/* Minute counts are hidden once the cache is too old to trust. */
+body.stale .strip .digit, body.stale .strip .word { color: var(--dim); }
+body.stale .strip .word.lit { background: var(--flap); color: var(--dim); }
+
+/* Notice view: one wide flap carrying the message. */
+#notice {
+  display: none; grid-column: 1 / -1; align-self: center;
+  height: 110px; font-size: 40px; font-weight: 500; letter-spacing: .2em;
+  text-transform: uppercase; color: var(--text); text-align: center; padding: 0 24px;
+  line-height: 1.15;
+}
+body[data-view="notice"] #notice { display: flex; }
+body[data-view="notice"] .route { display: none; }
+
+footer {
+  height: 30px; flex: none;
+  display: flex; align-items: center; gap: 8px;
+  padding: 0 24px; border-top: 1px solid var(--line);
+  font-size: 13px; letter-spacing: .2em; text-transform: uppercase; color: var(--muted);
+}
+#dot { width: 8px; height: 8px; border-radius: 50%; background: var(--amber); flex: none; }
+body.stale #dot, body.offline #dot { background: var(--delay); }
+body[data-view="notice"] #dot { background: var(--dim); }

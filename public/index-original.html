@@ -1,0 +1,211 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Bus Arrivals</title>
+<style>
+  :root {
+    --bg: #0d1117; --panel: #161b22; --line: #30363d;
+    --text: #e6edf3; --muted: #8b949e; --accent: #58a6ff;
+    --warn: #d29922; --due: #3fb950;
+  }
+  * { box-sizing: border-box; }
+  html, body { height: 100%; margin: 0; }
+  body {
+    background: var(--bg); color: var(--text);
+    font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+    display: flex; flex-direction: column; overflow: hidden;
+    -webkit-font-smoothing: antialiased;
+  }
+  header {
+    display: flex; align-items: baseline; justify-content: space-between;
+    gap: 1rem; padding: clamp(.4rem, 1.6vh, 1.5rem) clamp(.75rem, 2.5vw, 2.5rem);
+    border-bottom: 1px solid var(--line);
+  }
+  h1 { margin: 0; font-size: clamp(1rem, min(4.5vh, 2.8vw), 2rem); font-weight: 600; letter-spacing: -.02em; }
+  #clock { font-size: clamp(1rem, min(4.5vh, 2.8vw), 2rem); font-variant-numeric: tabular-nums; color: var(--muted); }
+  /* Centred rather than top-anchored: on a 480px panel a short list pinned to
+     the top leaves the screen looking broken. */
+  main {
+    flex: 1; display: flex; flex-direction: column; justify-content: center;
+    min-height: 0; padding: 0 clamp(.75rem, 2.5vw, 2.5rem);
+  }
+  table { width: 100%; border-collapse: collapse; table-layout: fixed; }
+  th {
+    text-align: left; font-size: clamp(.6rem, min(2.6vh, 1.5vw), .95rem); font-weight: 600;
+    letter-spacing: .1em; text-transform: uppercase; color: var(--muted);
+    padding: clamp(.35rem, 1.2vh, 1.1rem) .4rem; border-bottom: 1px solid var(--line);
+  }
+  td {
+    font-size: clamp(1.5rem, min(9vh, 5.2vw), 3.25rem); font-weight: 500;
+    padding: clamp(.45rem, 1.7vh, 1.2rem) .4rem; border-bottom: 1px solid var(--line);
+    font-variant-numeric: tabular-nums; white-space: nowrap;
+    overflow: hidden; text-overflow: ellipsis;
+  }
+  td.route { font-weight: 700; color: var(--accent); }
+  td.mins { text-align: right; }
+  td.mins .due { color: var(--due); font-weight: 700; }
+  tr.delayed td.route, tr.delayed td.mins { color: var(--warn); }
+  /* Minute counts are hidden once the cache is too old to trust. */
+  body.stale td.mins { color: var(--muted); opacity: .45; }
+  #notice {
+    flex: 1; display: none; align-items: center; justify-content: center;
+    text-align: center; font-size: clamp(1.25rem, min(9vh, 6vw), 3.5rem);
+    font-weight: 600; color: var(--muted); padding: 1rem; line-height: 1.25;
+  }
+  body[data-view="notice"] #notice { display: flex; }
+  body[data-view="notice"] table { display: none; }
+  footer {
+    display: flex; align-items: center; gap: .6rem;
+    padding: clamp(.3rem, 1.2vh, 1.1rem) clamp(.75rem, 2.5vw, 2.5rem);
+    border-top: 1px solid var(--line);
+    font-size: clamp(.65rem, min(2.6vh, 1.6vw), 1rem); color: var(--muted);
+  }
+  #dot { width: .65em; height: .65em; border-radius: 50%; background: var(--due); flex: none; }
+  body.stale #dot, body.offline #dot { background: var(--warn); }
+</style>
+</head>
+<body data-view="notice">
+  <header>
+    <h1>Bus Arrivals</h1>
+    <div id="clock"></div>
+  </header>
+
+  <main>
+    <table>
+      <thead>
+        <tr>
+          <th style="width:12%">Route</th>
+          <th style="width:40%">Direction</th>
+          <th style="width:28%">Time</th>
+          <th style="width:20%; text-align:right">Minutes Until</th>
+        </tr>
+      </thead>
+      <tbody id="rows"></tbody>
+    </table>
+    <div id="notice">Connecting&hellip;</div>
+  </main>
+
+  <footer><span id="dot"></span><span id="status">Starting up</span></footer>
+
+<script>
+(() => {
+  'use strict';
+  const POLL_MS = 15000;
+  const rows = document.getElementById('rows');
+  const notice = document.getElementById('notice');
+  const statusEl = document.getElementById('status');
+  const clockEl = document.getElementById('clock');
+
+  // Last good payload, plus the client timestamp when it landed. Ages are
+  // derived from the server's own clock delta, so a skewed Pi clock cannot
+  // make the data look fresher or staler than it really is.
+  let payload = null;
+  let receivedAt = 0;
+
+  const timeFmt = new Intl.DateTimeFormat([], { hour: 'numeric', minute: '2-digit' });
+
+  function showNotice(text) {
+    notice.textContent = text;
+    document.body.dataset.view = 'notice';
+  }
+
+  function ageMs() {
+    if (!payload || payload.fetchedAt === null) return Infinity;
+    return (payload.now - payload.fetchedAt) + (Date.now() - receivedAt);
+  }
+
+  // CTA counts down in whole minutes and sends "DUE" on approach. Between
+  // polls we keep counting locally so the display never looks frozen.
+  function minutesUntil(prdctdn, elapsedMin) {
+    if (!/^\d+$/.test(prdctdn)) return prdctdn;
+    const remaining = parseInt(prdctdn, 10) - elapsedMin;
+    return remaining <= 0 ? 'DUE' : String(remaining);
+  }
+
+  function render() {
+    clockEl.textContent = timeFmt.format(new Date());
+    if (!payload) return;
+
+    const age = ageMs();
+    // Outside service hours there is deliberately no recent fetch, so the
+    // staleness warning would be reporting a fault that does not exist.
+    const stale = payload.status !== 'closed' && age > payload.staleAfterMs;
+    document.body.classList.toggle('stale', stale);
+
+    if (payload.status === 'closed' || payload.arrivals.length === 0) {
+      showNotice(payload.message || 'No arrival times available right now.');
+      statusEl.textContent =
+        payload.status === 'closed'
+          ? 'Outside service hours · 6:00 AM to 6:00 PM, weekdays'
+          : (payload.message || '');
+      return;
+    }
+
+    const elapsedMin = Math.floor(age / 60000);
+    rows.replaceChildren(...payload.arrivals.map((a) => {
+      const tr = document.createElement('tr');
+
+      const route = document.createElement('td');
+      route.className = 'route';
+      route.textContent = a.rt;
+      if (a.dly) tr.classList.add('delayed');
+
+      const dir = document.createElement('td');
+      dir.textContent = a.rtdir;
+
+      const time = document.createElement('td');
+      time.textContent = a.prdtmDisplay;
+
+      const mins = document.createElement('td');
+      mins.className = 'mins';
+      if (stale) {
+        mins.textContent = '—';
+      } else {
+        const value = minutesUntil(a.prdctdn, elapsedMin);
+        if (value === 'DUE') {
+          const span = document.createElement('span');
+          span.className = 'due';
+          span.textContent = 'DUE';
+          mins.appendChild(span);
+        } else {
+          mins.textContent = value;
+        }
+      }
+
+      tr.append(route, dir, time, mins);
+      return tr;
+    }));
+
+    document.body.dataset.view = 'table';
+    const at = payload.fetchedAt ? timeFmt.format(new Date(payload.fetchedAt)) : 'never';
+    statusEl.textContent = stale
+      ? 'Data may be out of date · last updated ' + at
+      : 'Updated ' + at;
+  }
+
+  async function poll() {
+    try {
+      const response = await fetch('/api/arrivals', { cache: 'no-store' });
+      if (!response.ok) throw new Error('HTTP ' + response.status);
+      payload = await response.json();
+      receivedAt = Date.now();
+      document.body.classList.remove('offline');
+    } catch {
+      // Most likely the service is not up yet at boot. Keep whatever is on
+      // screen, flag it, and retry - never surface a browser error page.
+      document.body.classList.add('offline');
+      if (!payload) showNotice('Waiting for the arrivals service…');
+      statusEl.textContent = 'Cannot reach the local service · retrying';
+    }
+    render();
+  }
+
+  poll();
+  setInterval(poll, POLL_MS);
+  setInterval(render, 1000);
+})();
+</script>
+</body>
+</html>
