@@ -19,7 +19,7 @@ const clockEl = element('clock');
 
 /** Route column -> its .slots container, keyed by data-rt. */
 const columns = new Map(
-  [...document.querySelectorAll('.route[data-rt]')].map((sec) => [
+  Array.from(document.querySelectorAll('.route[data-rt]'), (sec) => [
     /** @type {HTMLElement} */ (sec).dataset.rt,
     /** @type {HTMLElement} */ (sec.querySelector('.slots')),
   ]),
@@ -50,7 +50,11 @@ function flap(className, text) {
  */
 function minuteFlaps(r) {
   if (/^\d{1,2}$/.test(r.mins)) {
-    const [tens, ones] = r.mins.padStart(2, '0');
+    // charAt rather than destructuring: the regex guarantees two characters
+    // after padding, but index access is typed as possibly undefined.
+    const padded = r.mins.padStart(2, '0');
+    const tens = padded.charAt(0);
+    const ones = padded.charAt(1);
     return [flap(tens === '0' ? 'digit lead' : 'digit', tens), flap('digit', ones)];
   }
   return [flap(r.due ? 'word lit' : 'word', r.mins)];

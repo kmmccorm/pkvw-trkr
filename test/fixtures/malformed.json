@@ -1,0 +1,47 @@
+{
+  "bustime-response": {
+    "prd": [
+      {
+        "tmstmp": "20260909 07:49", "typ": "A", "stpnm": "California & North Ave",
+        "stpid": "15231", "vid": "8425", "rt": "94", "rtdd": "94",
+        "rtdir": "Northbound", "des": "Addison/Rockwell", "prdtm": "20260909 08:09",
+        "dly": false, "prdctdn": "19", "stsd": "2026-09-09"
+      },
+      {
+        "tmstmp": "20260909 07:49", "typ": "A", "stpnm": "California & North Ave",
+        "stpid": "15231", "vid": "8216", "rt": "94", "rtdd": "94",
+        "rtdir": "Northbound", "des": "Addison/Rockwell",
+        "dly": false, "prdctdn": "5", "stsd": "2026-09-09"
+      },
+      null,
+      42,
+      "not a prediction",
+      [],
+      {
+        "tmstmp": "20260909 07:49", "typ": "A", "stpnm": "North Ave & Western",
+        "stpid": 890, "vid": "1904", "rt": "72", "rtdd": "72",
+        "rtdir": "Eastbound", "des": "Clark", "prdtm": "20260909 07:51",
+        "dly": false, "prdctdn": "DUE", "stsd": "2026-09-09"
+      },
+      {
+        "tmstmp": "20260909 07:49", "typ": "A", "stpnm": "North Ave & Western",
+        "stpid": "890", "vid": "1905", "rt": "72", "rtdd": "72",
+        "rtdir": "Eastbound", "des": "Clark", "prdtm": "20260909 07:58",
+        "dly": "yes", "prdctdn": 9, "stsd": "2026-09-09"
+      },
+      {
+        "tmstmp": "20260909 07:49", "typ": "A", "stpnm": "North Ave & Western",
+        "stpid": "890", "vid": "1906", "rt": "72", "rtdd": "72",
+        "rtdir": "Eastbound", "des": "Clark", "prdtm": "20260909 08:03",
+        "dly": "yes", "prdctdn": "14", "stsd": "2026-09-09"
+      }
+    ],
+    "error": [
+      { "rt": "72", "stpid": "15231", "msg": "No data found for parameter" },
+      null,
+      { "stpid": "890" },
+      "just a string",
+      { "msg": 404 }
+    ]
+  }
+}
