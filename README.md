@@ -219,13 +219,12 @@ Checked directly against CTA rather than taken from documentation:
   `No arrival times`, `No service scheduled`. The first two are fixtures in
   `test/fixtures/no-service.json`. None match `isHardError()`, so all three are
   correctly treated as "nothing is coming" rather than as a fault.
+- `prdctdn` does return the string `"DUE"` as a bus approaches, confirmed on
+  the deployed board. This is why the field is carried through verbatim
+  instead of being parsed as a number.
 
 ### Still unconfirmed
 
-- **`prdctdn` returning `"DUE"`.** Not yet observed live — it only appears when
-  a bus is actually arriving. The code carries any non-numeric value through
-  verbatim and the frontend renders it, so a different sentinel would display
-  correctly rather than breaking, but it would not be styled as `DUE` is.
 - **`isHardError()` coverage.** It classifies an error as a real failure by
   matching on wording. The two benign messages above are handled, and a rejected
   key is handled, but CTA could return other phrasings that are misclassified.
